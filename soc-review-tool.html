@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SOC · Software Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg: #0a0c0f;
+  --surface: #111318;
+  --surface2: #181c23;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.13);
+  --text: #e8eaf0;
+  --muted: #7a8093;
+  --accent: #4fffb0;
+  --accent-dim: rgba(79,255,176,0.12);
+  --accent-border: rgba(79,255,176,0.35);
+  --red: #ff5f5f;
+  --red-dim: rgba(255,95,95,0.1);
+  --amber: #ffb84d;
+  --amber-dim: rgba(255,184,77,0.1);
+  --blue: #5eb8ff;
+  --blue-dim: rgba(94,184,255,0.1);
+  --font-head: 'Syne', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+  --r: 8px;
+  --r-lg: 12px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  min-height: 100vh;
+  line-height: 1.6;
+}
+
+/* Noise texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.6;
+}
+
+.layout { position: relative; z-index: 1; display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.logo {
+  padding: 24px 20px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.logo-mark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.logo-icon {
+  width: 32px; height: 32px;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+}
+.logo-name {
+  font-family: var(--font-head);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--text);
+}
+.logo-sub {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+}
+
+.sidebar-section {
+  padding: 16px 12px 8px;
+}
+.sidebar-label {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 0 8px;
+  margin-bottom: 6px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--r);
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+  text-decoration: none;
+}
+.nav-item:hover { background: var(--surface2); color: var(--text); }
+.nav-item.active {
+  background: var(--accent-dim);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+.nav-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+.nav-item.active .nav-dot { opacity: 1; }
+
+.nav-badge {
+  margin-left: auto;
+  font-size: 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  color: var(--muted);
+  padding: 1px 6px;
+  border-radius: 20px;
+}
+.nav-item.active .nav-badge {
+  background: var(--accent-dim);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.sidebar-stats {
+  margin-top: auto;
+  padding: 16px 12px;
+  border-top: 1px solid var(--border);
+}
+.stat-mini { margin-bottom: 10px; }
+.stat-mini-label { font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+.stat-mini-bar { height: 3px; background: var(--surface2); border-radius: 2px; overflow: hidden; }
+.stat-mini-fill { height: 100%; border-radius: 2px; transition: width 0.5s; }
+.stat-mini-row { display: flex; justify-content: space-between; align-items: center; margin-top: 3px; }
+.stat-mini-nums { font-size: 11px; color: var(--text); }
+
+/* ── MAIN ── */
+.main { display: flex; flex-direction: column; min-height: 100vh; }
+
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 28px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.topbar-title {
+  font-family: var(--font-head);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+}
+.topbar-sep { color: var(--border2); }
+.topbar-sub { font-size: 12px; color: var(--muted); }
+.topbar-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  border: 1px solid var(--border2);
+  background: var(--surface2);
+  color: var(--muted);
+}
+.status-pill.pass { background: var(--accent-dim); border-color: var(--accent-border); color: var(--accent); }
+.status-pill.fail { background: var(--red-dim); border-color: rgba(255,95,95,0.3); color: var(--red); }
+.status-pill.pending { background: var(--amber-dim); border-color: rgba(255,184,77,0.3); color: var(--amber); }
+.status-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+.content { padding: 28px; flex: 1; }
+
+/* ── INPUT PANEL ── */
+.input-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 20px;
+  margin-bottom: 24px;
+  animation: fadeIn 0.3s ease;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.panel-head-icon {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px;
+}
+.panel-head-title {
+  font-family: var(--font-head);
+  font-size: 14px;
+  font-weight: 500;
+}
+.panel-head-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+.url-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.url-input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: var(--r);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 0 14px;
+  height: 40px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.url-input:focus { border-color: var(--accent-border); }
+.url-input::placeholder { color: var(--muted); }
+
+.btn {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: var(--r);
+  border: 1px solid var(--border2);
+  background: var(--surface2);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+.btn:hover { border-color: var(--border2); color: var(--text); background: var(--surface); }
+.btn-accent {
+  background: var(--accent);
+  color: #0a0c0f;
+  border-color: var(--accent);
+  font-weight: 500;
+}
+.btn-accent:hover { background: #6fffbb; border-color: #6fffbb; color: #0a0c0f; }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.context-toggle {
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 8px;
+  padding: 4px 0;
+  border: none;
+  background: none;
+  font-family: var(--font-mono);
+}
+.context-toggle:hover { color: var(--text); }
+
+.context-box {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: var(--r);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 10px 14px;
+  resize: vertical;
+  outline: none;
+  line-height: 1.6;
+  min-height: 60px;
+  margin-bottom: 8px;
+}
+.context-box:focus { border-color: var(--accent-border); }
+.context-box::placeholder { color: var(--muted); }
+
+/* ── PROGRESS ── */
+.progress-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  display: none;
+}
+.progress-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.pstat { text-align: center; }
+.pstat-num { font-family: var(--font-head); font-size: 28px; font-weight: 700; line-height: 1; }
+.pstat-label { font-size: 10px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.08em; }
+.pbar { height: 2px; background: var(--surface2); border-radius: 1px; overflow: hidden; }
+.pbar-fill { height: 100%; background: var(--accent); border-radius: 1px; transition: width 0.5s; width: 0%; }
+
+/* ── CHECKLIST ── */
+.section-block {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  margin-bottom: 12px;
+  overflow: hidden;
+  animation: fadeIn 0.3s ease;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.section-head:hover { background: var(--surface2); }
+
+.section-icon {
+  width: 30px; height: 30px;
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.section-name {
+  font-family: var(--font-head);
+  font-size: 13px;
+  font-weight: 500;
+  flex: 1;
+}
+
+.section-tags { display: flex; gap: 5px; align-items: center; }
+
+.tag {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 20px;
+  border: 1px solid var(--border2);
+  color: var(--muted);
+  background: var(--surface2);
+}
+.tag.pass { background: var(--accent-dim); border-color: var(--accent-border); color: var(--accent); }
+.tag.fail { background: var(--red-dim); border-color: rgba(255,95,95,0.3); color: var(--red); }
+.tag.warn { background: var(--amber-dim); border-color: rgba(255,184,77,0.3); color: var(--amber); }
+
+.chev { font-size: 12px; color: var(--muted); transition: transform 0.2s; margin-left: 4px; }
+.chev.open { transform: rotate(180deg); }
+
+.section-body { border-top: 1px solid var(--border); display: none; }
+.section-body.open { display: block; }
+
+.check-row {
+  display: grid;
+  grid-template-columns: 28px 1fr 200px 36px;
+  gap: 12px;
+  align-items: start;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+.check-row:last-child { border-bottom: none; }
+.check-row:hover { background: rgba(255,255,255,0.015); }
+
+.check-id {
+  font-size: 10px;
+  color: var(--muted);
+  padding-top: 3px;
+  font-weight: 500;
+}
+
+.check-q {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.5;
+  padding-top: 2px;
+}
+
+.check-ans {
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  min-height: 28px;
+  line-height: 1.5;
+}
+.check-ans.loading {
+  color: var(--muted);
+  font-style: italic;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.check-ans.pass { background: var(--accent-dim); border-color: var(--accent-border); color: #6fffbb; }
+.check-ans.fail { background: var(--red-dim); border-color: rgba(255,95,95,0.3); color: var(--red); }
+.check-ans.warn { background: var(--amber-dim); border-color: rgba(255,184,77,0.3); color: var(--amber); }
+
+.check-badge {
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px;
+  border: 1px solid var(--border2);
+  background: var(--surface2);
+  cursor: pointer;
+  color: var(--muted);
+  transition: all 0.15s;
+  user-select: none;
+  flex-shrink: 0;
+}
+.check-badge:hover { border-color: var(--border2); color: var(--text); }
+.check-badge.pass { background: var(--accent-dim); border-color: var(--accent-border); color: var(--accent); }
+.check-badge.fail { background: var(--red-dim); border-color: rgba(255,95,95,0.3); color: var(--red); }
+.check-badge.warn { background: var(--amber-dim); border-color: rgba(255,184,77,0.3); color: var(--amber); }
+
+/* ── SUMMARY ── */
+.summary-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 20px;
+  margin-bottom: 12px;
+  display: none;
+  animation: fadeIn 0.3s ease;
+}
+
+.verdict-row { display: flex; gap: 8px; margin-bottom: 16px; }
+.verdict-btn {
+  flex: 1;
+  height: 40px;
+  border-radius: var(--r);
+  border: 1px solid var(--border2);
+  background: var(--surface2);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-weight: 500;
+}
+.verdict-btn:hover { color: var(--text); }
+.verdict-btn.active-pass { background: var(--accent-dim); border-color: var(--accent-border); color: var(--accent); }
+.verdict-btn.active-fail { background: var(--red-dim); border-color: rgba(255,95,95,0.3); color: var(--red); }
+
+.field-label {
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
+}
+
+.textarea {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: var(--r);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 10px 14px;
+  resize: vertical;
+  outline: none;
+  line-height: 1.6;
+  min-height: 80px;
+  margin-bottom: 14px;
+}
+.textarea:focus { border-color: var(--accent-border); }
+.textarea::placeholder { color: var(--muted); }
+
+.output-box {
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: var(--r);
+  padding: 14px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  white-space: pre-wrap;
+  line-height: 1.7;
+  max-height: 240px;
+  overflow-y: auto;
+  margin-bottom: 14px;
+}
+
+.actions-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── SPINNER & ANIMATIONS ── */
+.spinner {
+  display: inline-block;
+  width: 12px; height: 12px;
+  border: 1.5px solid rgba(10,12,15,0.3);
+  border-top-color: #0a0c0f;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 768px) {
+  .layout { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+  .content { padding: 16px; }
+  .topbar { padding: 12px 16px; }
+  .check-row { grid-template-columns: 24px 1fr; }
+  .check-ans, .check-badge { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-mark">
+        <div class="logo-icon">🔒</div>
+        <span class="logo-name">SOC Review</span>
+      </div>
+      <div class="logo-sub">Software Security Checklist</div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Навигация</div>
+      <a class="nav-item active" onclick="scrollTo(0,0)">
+        <span class="nav-dot"></span> Новая проверка
+      </a>
+      <a class="nav-item" onclick="scrollToSection('checklistArea')">
+        <span class="nav-dot"></span> Чеклист
+        <span class="nav-badge" id="navTotal">0</span>
+      </a>
+      <a class="nav-item" onclick="scrollToSection('summaryPanel')">
+        <span class="nav-dot"></span> Summary
+      </a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Разделы</div>
+      <div id="sidebarSections"></div>
+    </div>
+
+    <div class="sidebar-stats">
+      <div class="stat-mini">
+        <div class="stat-mini-label">Прогресс</div>
+        <div class="stat-mini-bar"><div class="stat-mini-fill" id="sidebarBar" style="background:var(--accent); width:0%"></div></div>
+        <div class="stat-mini-row">
+          <span style="font-size:10px; color:var(--muted)">заполнено</span>
+          <span class="stat-mini-nums" id="sidebarProgress">0 / 0</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <span class="topbar-title">Software Review</span>
+      <span class="topbar-sep">/</span>
+      <span class="topbar-sub" id="topbarService">Новая проверка</span>
+      <div class="topbar-right">
+        <div class="status-pill pending" id="topbarStatus">
+          <span class="status-dot"></span> ожидает
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- INPUT -->
+      <div class="input-panel">
+        <div class="panel-head">
+          <div class="panel-head-icon">⚡</div>
+          <div>
+            <div class="panel-head-title">Анализ сервиса</div>
+            <div class="panel-head-sub">AI проверит и заполнит чеклист автоматически</div>
+          </div>
+        </div>
+
+        <div class="url-row">
+          <input class="url-input" id="serviceUrl" type="url" placeholder="https://github.com/org/service  или ссылка на документацию..." />
+          <button class="btn" onclick="toggleContext()" id="ctxBtn">＋ Контекст</button>
+          <button class="btn btn-accent" id="analyzeBtn" onclick="startAnalysis()">▶ Анализировать</button>
+        </div>
+
+        <div id="contextArea" style="display:none">
+          <textarea class="context-box" id="contextText" placeholder="Стек, назначение сервиса, особенности — всё что поможет AI дать точный ответ..."></textarea>
+        </div>
+
+        <div style="font-size:11px; color:var(--muted)">
+          Поддерживаются: GitHub, GitLab, Confluence, Notion, документация, сайты
+        </div>
+      </div>
+
+      <!-- PROGRESS -->
+      <div class="progress-panel" id="progressPanel">
+        <div class="progress-stats">
+          <div class="pstat">
+            <div class="pstat-num" id="pTotal" style="color:var(--text)">—</div>
+            <div class="pstat-label">Всего</div>
+          </div>
+          <div class="pstat">
+            <div class="pstat-num" id="pPass" style="color:var(--accent)">—</div>
+            <div class="pstat-label">Пройдено</div>
+          </div>
+          <div class="pstat">
+            <div class="pstat-num" id="pFail" style="color:var(--red)">—</div>
+            <div class="pstat-label">Проблемы</div>
+          </div>
+          <div class="pstat">
+            <div class="pstat-num" id="pWarn" style="color:var(--amber)">—</div>
+            <div class="pstat-label">Внимание</div>
+          </div>
+        </div>
+        <div class="pbar"><div class="pbar-fill" id="pBarFill"></div></div>
+      </div>
+
+      <!-- CHECKLIST -->
+      <div id="checklistArea"></div>
+
+      <!-- SUMMARY -->
+      <div class="summary-panel" id="summaryPanel">
+        <div class="panel-head" style="margin-bottom:16px">
+          <div class="panel-head-icon" style="background:rgba(94,184,255,0.12); border-color:rgba(94,184,255,0.35);">📊</div>
+          <div>
+            <div class="panel-head-title">Summary</div>
+            <div class="panel-head-sub">Итоговое заключение для Asana</div>
+          </div>
+        </div>
+
+        <div class="field-label">Вердикт</div>
+        <div class="verdict-row">
+          <button class="verdict-btn" id="verdictPass" onclick="setVerdict('pass')">✓ Одобрить</button>
+          <button class="verdict-btn" id="verdictFail" onclick="setVerdict('fail')">✗ Отклонить</button>
+        </div>
+
+        <div class="field-label">Выявленные риски (AI заполняет автоматически)</div>
+        <textarea class="textarea" id="risksText" placeholder="• Риск 1&#10;• Риск 2"></textarea>
+
+        <div class="field-label">Комментарий инженера</div>
+        <textarea class="textarea" id="engineerComment" placeholder="Дополнительные наблюдения, рекомендации..." style="min-height:60px;"></textarea>
+
+        <div class="field-label" style="margin-bottom:6px;">
+          Готовый текст для Asana &nbsp;<span class="tag">скрытый комментарий</span>
+        </div>
+        <div class="output-box" id="asanaOutput">Заполните чеклист → нажмите «Сформировать»...</div>
+
+        <div class="actions-row">
+          <button class="btn" onclick="generateAsanaComment()">⚡ Сформировать</button>
+          <button class="btn" onclick="copyToClipboard()" id="copyBtn">⎘ Копировать</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const CHECKLIST = [
+  {
+    id:"auth", title:"Аутентификация и авторизация", icon:"🔐",
+    color:"rgba(94,184,255,0.12)", borderColor:"rgba(94,184,255,0.3)",
+    items:[
+      {id:"a1", q:"Используется ли MFA / 2FA для доступа к сервису?"},
+      {id:"a2", q:"Применяется ли принцип наименьших привилегий (RBAC/ABAC)?"},
+      {id:"a3", q:"Есть ли механизм ротации токенов/ключей API?"},
+      {id:"a4", q:"Защищена ли аутентификация от брутфорса (rate limiting, lockout)?"},
+    ]
+  },
+  {
+    id:"data", title:"Защита данных", icon:"🗄️",
+    color:"rgba(79,255,176,0.08)", borderColor:"rgba(79,255,176,0.25)",
+    items:[
+      {id:"d1", q:"Шифруются ли данные в покое (at rest)?"},
+      {id:"d2", q:"Используется ли TLS 1.2+ для данных в транзите (in transit)?"},
+      {id:"d3", q:"Маскируются ли чувствительные данные в логах (PII, секреты)?"},
+      {id:"d4", q:"Есть ли политика хранения и удаления данных (data retention)?"},
+    ]
+  },
+  {
+    id:"vuln", title:"Уязвимости и зависимости", icon:"🛡️",
+    color:"rgba(255,184,77,0.08)", borderColor:"rgba(255,184,77,0.25)",
+    items:[
+      {id:"v1", q:"Проводится ли сканирование зависимостей (SCA/SBOM)?"},
+      {id:"v2", q:"Есть ли процесс управления CVE / patch management?"},
+      {id:"v3", q:"Интегрирован ли SAST/DAST в CI/CD пайплайн?"},
+      {id:"v4", q:"Нет ли известных критических (CVSS ≥ 9.0) уязвимостей?"},
+    ]
+  },
+  {
+    id:"access", title:"Управление доступом", icon:"👥",
+    color:"rgba(94,184,255,0.08)", borderColor:"rgba(94,184,255,0.22)",
+    items:[
+      {id:"ac1", q:"Ведётся ли аудит лог доступа (кто, когда, что делал)?"},
+      {id:"ac2", q:"Есть ли процесс offboarding и отзыва доступов?"},
+      {id:"ac3", q:"Разграничены ли prod/staging/dev окружения?"},
+    ]
+  },
+  {
+    id:"incident", title:"Инциденты и мониторинг", icon:"🚨",
+    color:"rgba(255,95,95,0.08)", borderColor:"rgba(255,95,95,0.22)",
+    items:[
+      {id:"i1", q:"Настроен ли алертинг на аномалии и инциденты безопасности?"},
+      {id:"i2", q:"Есть ли Incident Response Plan (IRP) для этого сервиса?"},
+      {id:"i3", q:"Логи централизованы и защищены от модификации (SIEM)?"},
+    ]
+  },
+  {
+    id:"cloud", title:"Инфраструктура и сеть", icon:"☁️",
+    color:"rgba(79,255,176,0.06)", borderColor:"rgba(79,255,176,0.2)",
+    items:[
+      {id:"cl1", q:"Применяется ли Network Segmentation / VPC isolation?"},
+      {id:"cl2", q:"Закрыты ли лишние порты, используется ли Firewall / WAF?"},
+      {id:"cl3", q:"Настроены ли backup и disaster recovery процедуры?"},
+    ]
+  },
+  {
+    id:"compliance", title:"Compliance и документация", icon:"📋",
+    color:"rgba(255,184,77,0.06)", borderColor:"rgba(255,184,77,0.2)",
+    items:[
+      {id:"co1", q:"Соответствует ли сервис требованиям (SOC2/ISO27001/GDPR)?"},
+      {id:"co2", q:"Есть ли актуальная security-документация и threat model?"},
+      {id:"co3", q:"Проводились ли пентесты или security review за последний год?"},
+    ]
+  }
+];
+
+let answers = {};
+let verdict = null;
+let currentService = "";
+
+function init() {
+  renderChecklist();
+  renderSidebar();
+  updateStats();
+}
+
+function renderChecklist() {
+  const area = document.getElementById("checklistArea");
+  area.innerHTML = CHECKLIST.map((s, si) => `
+    <div class="section-block" id="block_${s.id}">
+      <div class="section-head" onclick="toggleSection('${s.id}')">
+        <div class="section-icon" style="background:${s.color}; border:1px solid ${s.borderColor}">${s.icon}</div>
+        <div>
+          <div class="section-name">${s.title}</div>
+        </div>
+        <div class="section-tags" id="tags_${s.id}">
+          <span class="tag">${s.items.length} пунктов</span>
+        </div>
+        <span class="chev open" id="chev_${s.id}">▾</span>
+      </div>
+      <div class="section-body open" id="body_${s.id}">
+        ${s.items.map(item => `
+          <div class="check-row" id="row_${item.id}">
+            <div class="check-id">${item.id.toUpperCase()}</div>
+            <div class="check-q">${item.q}</div>
+            <div class="check-ans na" id="ans_${item.id}">ожидает анализа</div>
+            <div class="check-badge" id="badge_${item.id}" onclick="cycleStatus('${item.id}')">—</div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `).join("");
+}
+
+function renderSidebar() {
+  const el = document.getElementById("sidebarSections");
+  el.innerHTML = CHECKLIST.map(s => `
+    <a class="nav-item" onclick="scrollToSection('block_${s.id}')">
+      <span class="nav-dot"></span> ${s.title}
+      <span class="nav-badge" id="snav_${s.id}">0</span>
+    </a>
+  `).join("");
+  document.getElementById("navTotal").textContent = CHECKLIST.flatMap(s=>s.items).length;
+}
+
+function toggleSection(id) {
+  const body = document.getElementById("body_" + id);
+  const chev = document.getElementById("chev_" + id);
+  const isOpen = body.classList.contains("open");
+  body.classList.toggle("open", !isOpen);
+  chev.classList.toggle("open", !isOpen);
+}
+
+function scrollToSection(id) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function cycleStatus(id) {
+  const statuses = ["pass","warn","fail","na"];
+  const cur = answers[id]?.status || "na";
+  const next = statuses[(statuses.indexOf(cur)+1)%statuses.length];
+  setItemStatus(id, next, answers[id]?.text || (next==="na"?"ожидает анализа":"вручную"));
+}
+
+function setItemStatus(id, status, text) {
+  answers[id] = { status, text };
+  const icons = { pass:"✓", warn:"!", fail:"✗", na:"—" };
+  const badge = document.getElementById("badge_"+id);
+  const ans = document.getElementById("ans_"+id);
+  if (!badge || !ans) return;
+  badge.className = "check-badge " + (status!=="na"?status:"");
+  badge.textContent = icons[status];
+  ans.className = "check-ans " + status;
+  ans.textContent = text;
+  updateStats();
+}
+
+function updateStats() {
+  const all = CHECKLIST.flatMap(s=>s.items);
+  const total = all.length;
+  const pass = all.filter(i=>answers[i.id]?.status==="pass").length;
+  const fail = all.filter(i=>answers[i.id]?.status==="fail").length;
+  const warn = all.filter(i=>answers[i.id]?.status==="warn").length;
+  const done = pass+fail+warn;
+
+  document.getElementById("pTotal").textContent = total;
+  document.getElementById("pPass").textContent = pass;
+  document.getElementById("pFail").textContent = fail;
+  document.getElementById("pWarn").textContent = warn;
+  document.getElementById("pBarFill").style.width = Math.round(done/total*100)+"%";
+  document.getElementById("sidebarBar").style.width = Math.round(done/total*100)+"%";
+  document.getElementById("sidebarProgress").textContent = done+" / "+total;
+
+  CHECKLIST.forEach(section=>{
+    const sPass = section.items.filter(i=>answers[i.id]?.status==="pass").length;
+    const sFail = section.items.filter(i=>answers[i.id]?.status==="fail").length;
+    const sWarn = section.items.filter(i=>answers[i.id]?.status==="warn").length;
+    const tags = document.getElementById("tags_"+section.id);
+    const snav = document.getElementById("snav_"+section.id);
+    const done2 = sPass+sFail+sWarn;
+    if (tags) {
+      let html="";
+      if(sPass) html+=`<span class="tag pass">✓${sPass}</span>`;
+      if(sFail) html+=`<span class="tag fail">✗${sFail}</span>`;
+      if(sWarn) html+=`<span class="tag warn">!${sWarn}</span>`;
+      if(!done2) html=`<span class="tag">${section.items.length} пунктов</span>`;
+      tags.innerHTML=html;
+    }
+    if(snav) snav.textContent = done2+"/"+section.items.length;
+  });
+
+  const pill = document.getElementById("topbarStatus");
+  if(fail>0) {
+    pill.className="status-pill fail";
+    pill.innerHTML='<span class="status-dot"></span> есть проблемы';
+  } else if(pass===total) {
+    pill.className="status-pill pass";
+    pill.innerHTML='<span class="status-dot"></span> завершено';
+  } else if(done>0) {
+    pill.className="status-pill pending";
+    pill.innerHTML='<span class="status-dot"></span> в процессе';
+  }
+}
+
+async function startAnalysis() {
+  const url = document.getElementById("serviceUrl").value.trim();
+  if (!url) {
+    document.getElementById("serviceUrl").style.borderColor="#ff5f5f";
+    setTimeout(()=>document.getElementById("serviceUrl").style.borderColor="",2000);
+    return;
+  }
+  currentService = url;
+  const short = url.replace(/^https?:\/\//,"").split("/")[0];
+  document.getElementById("topbarService").textContent = short;
+
+  const btn = document.getElementById("analyzeBtn");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Анализирую...';
+
+  document.getElementById("progressPanel").style.display = "block";
+  document.getElementById("summaryPanel").style.display = "block";
+
+  // Set all to loading
+  CHECKLIST.flatMap(s=>s.items).forEach(item=>{
+    const ans = document.getElementById("ans_"+item.id);
+    if(ans){ ans.className="check-ans loading"; ans.textContent="анализирую..."; }
+  });
+
+  const context = document.getElementById("contextText").value.trim();
+  const allItems = CHECKLIST.flatMap(s=>s.items);
+
+  const prompt = `Ты SOC-инженер. Проанализируй публично доступную информацию о сервисе: ${url}
+${context ? `Контекст: ${context}` : ""}
+
+Используй web_search для поиска: security practices, documentation, CVE, GitHub issues, readme.
+
+Для каждого пункта чеклиста дай:
+- status: "pass" | "fail" | "warn" | "na"  
+- text: конкретный вывод на русском, 1 предложение
+
+Пункты:
+${allItems.map(i=>`${i.id}: ${i.q}`).join("\n")}
+
+Дай также:
+- risks: ключевые риски bullet-list на русском
+- verdict: "pass" или "fail"
+
+Ответь ТОЛЬКО JSON без markdown и пояснений:
+{"items":{"a1":{"status":"pass","text":"..."},...},"risks":"• ...","verdict":"pass"}`;
+
+  try {
+    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model:"claude-sonnet-4-20250514",
+        max_tokens:1000,
+        tools:[{type:"web_search_20250305",name:"web_search"}],
+        messages:[{role:"user",content:prompt}]
+      })
+    });
+    const data = await resp.json();
+    const textBlock = data.content?.find(b=>b.type==="text");
+    const raw = textBlock?.text || "";
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw.replace(/```json|```/g,"").trim());
+    } catch {
+      const m = raw.match(/\{[\s\S]*\}/);
+      if(m) parsed = JSON.parse(m[0]);
+    }
+
+    if (parsed?.items) {
+      Object.entries(parsed.items).forEach(([id,val])=>{
+        setItemStatus(id, val.status||"na", val.text||"—");
+      });
+      if(parsed.risks) document.getElementById("risksText").value = parsed.risks;
+      if(parsed.verdict) setVerdict(parsed.verdict);
+    } else {
+      allItems.forEach(i=>setItemStatus(i.id,"warn","Проверьте вручную — данных недостаточно"));
+    }
+  } catch(err) {
+    allItems.forEach(i=>setItemStatus(i.id,"warn","Ошибка API — заполните вручную"));
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = "↺ Переанализировать";
+  generateAsanaComment();
+}
+
+function setVerdict(v) {
+  verdict = v;
+  document.getElementById("verdictPass").className="verdict-btn"+(v==="pass"?" active-pass":"");
+  document.getElementById("verdictFail").className="verdict-btn"+(v==="fail"?" active-fail":"");
+}
+
+function generateAsanaComment() {
+  const date = new Date().toLocaleDateString("ru-RU", {day:"2-digit",month:"2-digit",year:"numeric"});
+  const url = currentService || document.getElementById("serviceUrl").value || "[сервис не указан]";
+  const all = CHECKLIST.flatMap(s=>s.items);
+  const pass = all.filter(i=>answers[i.id]?.status==="pass").length;
+  const fail = all.filter(i=>answers[i.id]?.status==="fail").length;
+  const warn = all.filter(i=>answers[i.id]?.status==="warn").length;
+  const total = all.length;
+  const risks = document.getElementById("risksText").value.trim();
+  const comment = document.getElementById("engineerComment").value.trim();
+  const vd = verdict==="pass"?"✅ ОДОБРЕН":verdict==="fail"?"❌ ОТКЛОНЁН":"⏳ НЕ ОПРЕДЕЛЕНО";
+
+  let lines = [
+    "🔒 SOFTWARE SECURITY REVIEW",
+    `Дата: ${date}`,
+    `Сервис: ${url}`,
+    `Вердикт: ${vd}`,
+    `Результат: ✓${pass}  ✗${fail}  !${warn}  из ${total} пунктов`,
+    ""
+  ];
+
+  CHECKLIST.forEach(section=>{
+    const si = section.items.filter(i=>answers[i.id]);
+    if(!si.length) return;
+    lines.push(`── ${section.title.toUpperCase()} ──`);
+    si.forEach(item=>{
+      const a=answers[item.id];
+      if(!a) return;
+      const ic={pass:"✓",fail:"✗",warn:"!",na:"–"}[a.status];
+      lines.push(`${ic} [${item.id.toUpperCase()}] ${item.q}`);
+      if(a.text && a.text!=="ожидает анализа") lines.push(`   → ${a.text}`);
+    });
+    lines.push("");
+  });
+
+  if(risks){ lines.push("── РИСКИ ──"); lines.push(risks); lines.push(""); }
+  if(comment){ lines.push("── КОММЕНТАРИЙ ИНЖЕНЕРА ──"); lines.push(comment); lines.push(""); }
+  lines.push("── конец отчёта ──");
+
+  document.getElementById("asanaOutput").textContent = lines.join("\n");
+}
+
+function copyToClipboard() {
+  generateAsanaComment();
+  const text = document.getElementById("asanaOutput").textContent;
+  navigator.clipboard.writeText(text).then(()=>{
+    const btn = document.getElementById("copyBtn");
+    btn.textContent = "✓ Скопировано";
+    setTimeout(()=>btn.textContent="⎘ Копировать", 2000);
+  });
+}
+
+function toggleContext() {
+  const el = document.getElementById("contextArea");
+  const btn = document.getElementById("ctxBtn");
+  const open = el.style.display!=="none";
+  el.style.display = open?"none":"block";
+  btn.textContent = open?"＋ Контекст":"— Контекст";
+}
+
+init();
+</script>
+</body>
+</html>
